@@ -5,20 +5,19 @@ import path from 'path'
 import matter from 'gray-matter'
 import Post from '@/components/Post'
 import { sortByDate } from '@/utils/index'
-import { POST_PER_PAGE } from '@/config/index'
-import Pagination from '@/components/Pagination'
 
-export default function BlogPage({ posts, numPages, currentPage }) {
+export default function CategoryBlogPage({ posts, categoryName }) {
 	return (
 		<Layout>
-			<h1 className='text-5xl border-b-4 p-5 font-bold'>Blog</h1>
+			<h1 className='text-5xl border-b-4 p-5 font-bold'>
+				Post for {categoryName}
+			</h1>
 
 			<div className='grid md:grid-cols-2 lg:grid-cols-3 gap-5'>
 				{posts.map((post, index) => (
 					<Post key={index} post={post} />
 				))}
 			</div>
-			<Pagination currentPage={currentPage} numPages={numPages} />
 		</Layout>
 	)
 }
@@ -26,17 +25,20 @@ export default function BlogPage({ posts, numPages, currentPage }) {
 export async function getStaticPaths() {
 	const files = fs.readdirSync(path.join('posts'))
 
-	const numPages = Math.ceil(files.length / POST_PER_PAGE)
+	const categories = files.map((filename) => {
+		const markdownWithMeta = fs.readFileSync(
+			path.join('posts', filename),
+			'utf-8'
+		)
 
-	let paths = []
+		const { data: frontmatter } = matter(markdownWithMeta)
 
-	for (let i = 1; i <= numPages; i++) {
-		paths.push({
-			params: {
-				page_index: i.toString(),
-			},
-		})
-	}
+		return frontmatter.category.toLowerCase()
+	})
+
+	const paths = categories.map((category) => ({
+		params: { category_name: category },
+	}))
 
 	return {
 		paths,
@@ -44,10 +46,7 @@ export async function getStaticPaths() {
 	}
 }
 
-export async function getStaticProps({ params }) {
-	// Check for page index
-	const page = parseInt((params && params.page_index) || 1)
-
+export async function getStaticProps({ params: { category_name } }) {
 	const files = fs.readdirSync(path.join('posts'))
 
 	// Create a slug and front matter data
@@ -68,17 +67,15 @@ export async function getStaticProps({ params }) {
 		}
 	})
 
-	const numPages = Math.ceil(files.length / POST_PER_PAGE)
-	const pageIndex = page - 1
-	const orderedPost = posts
-		.sort(sortByDate)
-		.slice(pageIndex * POST_PER_PAGE, (pageIndex + 1) * POST_PER_PAGE)
+	// Filter post by category
+	const categoryPosts = posts.filter(
+		(post) => post.frontmatter.category.toLowerCase() === category_name
+	)
 
 	return {
 		props: {
-			posts: orderedPost,
-			numPages,
-			currentPage: page,
+			posts: categoryPosts.sort(sortByDate),
+			categoryName: category_name,
 		},
 	}
 }
